@@ -63,12 +63,22 @@ APP_NAME=Organization Management Service
 
 ### Running the Application
 
+**Windows:**
 ```bash
-# Development mode with auto-reload
-python -m app.main
+# Activate virtual environment
+venv\Scripts\Activate
 
-# Or using uvicorn directly
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Development mode with auto-reload
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Linux/macOS:**
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Development mode with auto-reload
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The API will be available at `http://localhost:8000`
@@ -231,6 +241,32 @@ docker run -p 8000:8000 --env-file .env org-management-service
 | `JWT_EXP_MINUTES` | Token expiration in minutes | `60` |
 | `APP_NAME` | Application name | `Organization Management Service` |
 
+## Troubleshooting
+
+### Fix: motor / pymongo import error
+
+If you encounter an `ImportError: cannot import name '_QUERY_OPTIONS' from 'pymongo.cursor'` or similar motor/pymongo compatibility errors:
+
+1. **Activate your virtual environment:**
+   - Windows: `venv\Scripts\Activate`
+   - Linux/macOS: `source venv/bin/activate`
+
+2. **Upgrade motor and pymongo to compatible versions:**
+   ```bash
+   pip install --upgrade "motor>=3.6" "pymongo>=4.9,<5.0"
+   ```
+
+3. **Restart the server:**
+   ```bash
+   python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+The application uses lazy imports for motor to avoid import-time compatibility issues. Motor is only imported when `connect_db()` is called during application startup, not at module import time.
+
 ## License
 
 [Your License Here]
+
+---
+
+**Commit:** `chore: fix motor/pymongo compatibility and lazy-import motor in database startup`
