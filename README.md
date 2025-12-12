@@ -1,96 +1,109 @@
 # Organization Management Service
 
-A FastAPI-based backend service for managing organizations with MongoDB. Each organization gets its own collection, and admins are authenticated via JWT tokens.
+A FastAPI-based backend service for managing organizations with MongoDB. Each organization is assigned its own database collection, and administrators are authenticated using JWT tokens.
 
 ## Features
 
-- Organization creation with admin user
-- JWT-based authentication
-- Per-organization MongoDB collections
+- Organization CRUD operations with admin user management
+- JWT-based authentication and authorization
+- Per-organization MongoDB collections for data isolation
 - Secure password hashing with bcrypt
-- Async/await throughout using Motor
-- RESTful API design
+- Async/await architecture using Motor for MongoDB operations
+- RESTful API with automatic OpenAPI documentation
 
-## Tech Stack
+## Project Structure
 
-- **Python 3.10+**
-- **FastAPI** - Modern web framework
-- **Motor** - Async MongoDB driver
-- **Pydantic** - Data validation
-- **PyJWT** - JWT token handling
-- **passlib[bcrypt]** - Password hashing
-- **pytest** - Testing framework
+```
+Organization-Management-Service/
+├── app/
+│   ├── main.py              # FastAPI application entry point
+│   ├── config.py            # Configuration management
+│   ├── database.py          # MongoDB connection utilities
+│   ├── models/              # Pydantic data models
+│   │   ├── org_model.py
+│   │   └── admin_model.py
+│   ├── routes/              # API route handlers
+│   │   ├── org_routes.py
+│   │   ├── auth_routes.py
+│   │   └── deps.py          # Authentication dependencies
+│   ├── services/            # Business logic layer
+│   │   ├── org_service.py
+│   │   └── auth_service.py
+│   └── utils/               # Utility functions
+│       ├── hash.py          # Password hashing
+│       └── jwt_handler.py   # JWT token management
+├── tests/
+│   └── test_org_flow.py     # Integration tests
+├── requirements.txt
+└── .env.example
+```
 
-## Setup
+## Setup & Run
 
 ### Prerequisites
-
-- Python 3.10 or higher
-- MongoDB instance (local or remote)
+- Python 3.10+
+- MongoDB instance
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd Organization-Management-Service
-```
-
-2. Create a virtual environment:
+1. Create virtual environment and install dependencies:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create `.env` file from `.env.example`:
+2. Configure environment variables:
 ```bash
 cp .env.example .env
 ```
 
-5. Edit `.env` with your configuration:
+Edit `.env`:
 ```
 MONGO_URI=mongodb://localhost:27017
-JWT_SECRET=your-secret-key-change-in-production
+JWT_SECRET=your-secret-key
 JWT_ALGORITHM=HS256
 JWT_EXP_MINUTES=60
 APP_NAME=Organization Management Service
 ```
 
-### Running the Application
-
-**Windows:**
+3. Run the application:
 ```bash
-# Activate virtual environment
-venv\Scripts\Activate
-
-# Development mode with auto-reload
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Linux/macOS:**
-```bash
-# Activate virtual environment
-source venv/bin/activate
+The API will be available at `http://localhost:8000`  
+API documentation: `http://localhost:8000/docs`
 
-# Development mode with auto-reload
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+## Architecture
+
+```mermaid
+graph TB
+    Client[Client Application] -->|HTTP Requests| API[FastAPI Application]
+    API -->|Routes| Auth[Authentication Routes]
+    API -->|Routes| Org[Organization Routes]
+    Auth -->|Service| AuthService[Auth Service]
+    Org -->|Service| OrgService[Organization Service]
+    AuthService -->|JWT| JWT[JWT Handler]
+    AuthService -->|Hash| Hash[Password Hashing]
+    OrgService -->|Database| DB[(MongoDB)]
+    AuthService -->|Database| DB
+    DB -->|Master DB| Master[org_master_db]
+    Master -->|Collections| Admins[admins collection]
+    Master -->|Collections| Orgs[organizations collection]
+    Master -->|Collections| OrgColls[org_* collections]
 ```
 
-The API will be available at `http://localhost:8000`
+## Design Choices
 
-API documentation (Swagger UI): `http://localhost:8000/docs`
-Alternative docs (ReDoc): `http://localhost:8000/redoc`
+- **Lazy Motor Import**: Motor (async MongoDB driver) is imported only during database connection to avoid import-time compatibility issues with pymongo versions
+- **Per-Organization Collections**: Each organization gets its own MongoDB collection (`org_<normalized_name>`) for data isolation and scalability
+- **Service Layer Pattern**: Business logic is separated into service modules, keeping routes thin and testable
+- **HTTPBearer Security**: Swagger UI uses HTTPBearer scheme for JWT token authentication, providing a clean single-field token input
 
-## API Endpoints
+## API Usage Example
 
-### Organization Management
-
-#### Create Organization
+### 1. Create Organization
 ```bash
 POST /org/create
 Content-Type: application/json
@@ -102,33 +115,7 @@ Content-Type: application/json
 }
 ```
 
-#### Get Organization
-```bash
-GET /org/{organization_name}
-```
-
-#### Update Organization
-```bash
-PUT /org/{organization_name}
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "new_organization_name": "Acme Corporation",
-  "email": "newadmin@acme.com",
-  "password": "newpassword123"
-}
-```
-
-#### Delete Organization
-```bash
-DELETE /org/{organization_name}
-Authorization: Bearer <token>
-```
-
-### Authentication
-
-#### Admin Login
+### 2. Login to Get JWT Token
 ```bash
 POST /admin/login
 Content-Type: application/json
@@ -139,134 +126,35 @@ Content-Type: application/json
 }
 ```
 
-Response includes JWT token:
+Response:
 ```json
 {
-  "access_token": "eyJ...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "bearer",
   "admin": {
     "admin_id": "...",
     "email": "admin@acme.com",
     "organization_name": "Acme Corp",
-    "org_collection": "org_acme_corp",
-    "created_at": "2024-01-01T00:00:00"
+    "org_collection": "org_acme_corp"
   }
 }
 ```
 
-## Architecture
-
-```mermaid
-graph TB
-    Client[Client] -->|HTTP| API[FastAPI App]
-    API -->|Async| Auth[Auth Service]
-    API -->|Async| Org[Org Service]
-    Auth -->|Verify| DB[(MongoDB)]
-    Org -->|Read/Write| DB
-    DB -->|Master DB| Master[org_master_db]
-    Master -->|Collections| Admins[admins]
-    Master -->|Collections| Orgs[organizations]
-    Master -->|Collections| OrgColls[org_* collections]
+Use the `access_token` in the Authorization header for protected endpoints:
+```
+Authorization: Bearer <access_token>
 ```
 
-## Database Structure
+## Submission Summary
 
-### Master Database: `org_master_db`
+This project implements a complete organization management backend service with the following key components:
 
-#### Collections:
-- **`admins`**: Admin user accounts
-  - `_id`: ObjectId
-  - `email`: string
-  - `hashed_password`: string
-  - `organization_name`: string
-  - `org_collection`: string
-  - `created_at`: datetime
+- **FastAPI** application with async MongoDB operations using Motor
+- **JWT-based authentication** with HTTPBearer security scheme for Swagger UI
+- **Per-organization data isolation** through dynamic MongoDB collections
+- **RESTful API** with automatic OpenAPI/Swagger documentation
+- **Service-oriented architecture** with clear separation of concerns
+- **Secure password handling** using bcrypt hashing
+- **Comprehensive error handling** with appropriate HTTP status codes
 
-- **`organizations`**: Organization metadata
-  - `_id`: ObjectId
-  - `organization_name`: string
-  - `collection_name`: string (e.g., `org_acme_corp`)
-  - `admin_id`: ObjectId (reference to admins)
-  - `admin_email`: string
-  - `created_at`: datetime
-
-- **`org_<normalized_name>`**: Per-organization collections
-  - Contains organization-specific data
-  - Created dynamically when organization is created
-
-## Testing
-
-Run tests with pytest:
-
-```bash
-pytest tests/ -v
-```
-
-Make sure to set `MONGO_URI` in your `.env` to point to a test database.
-
-## Docker
-
-### Using Docker Compose
-
-```bash
-docker-compose up -d
-```
-
-This will start:
-- MongoDB on port 27017
-- FastAPI application on port 8000
-
-### Using Dockerfile
-
-```bash
-docker build -t org-management-service .
-docker run -p 8000:8000 --env-file .env org-management-service
-```
-
-## Security Notes
-
-- Passwords are hashed using bcrypt (via passlib)
-- JWT tokens expire after configured minutes (default: 60)
-- Only organization admins can update/delete their organizations
-- All sensitive operations require authentication
-- Never expose hashed passwords in API responses
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MONGO_URI` | MongoDB connection string | Required |
-| `JWT_SECRET` | Secret key for JWT signing | Required |
-| `JWT_ALGORITHM` | JWT algorithm | `HS256` |
-| `JWT_EXP_MINUTES` | Token expiration in minutes | `60` |
-| `APP_NAME` | Application name | `Organization Management Service` |
-
-## Troubleshooting
-
-### Fix: motor / pymongo import error
-
-If you encounter an `ImportError: cannot import name '_QUERY_OPTIONS' from 'pymongo.cursor'` or similar motor/pymongo compatibility errors:
-
-1. **Activate your virtual environment:**
-   - Windows: `venv\Scripts\Activate`
-   - Linux/macOS: `source venv/bin/activate`
-
-2. **Upgrade motor and pymongo to compatible versions:**
-   ```bash
-   pip install --upgrade "motor>=3.6" "pymongo>=4.9,<5.0"
-   ```
-
-3. **Restart the server:**
-   ```bash
-   python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-The application uses lazy imports for motor to avoid import-time compatibility issues. Motor is only imported when `connect_db()` is called during application startup, not at module import time.
-
-## License
-
-[Your License Here]
-
----
-
-**Commit:** `chore: fix motor/pymongo compatibility and lazy-import motor in database startup`
+The service supports full CRUD operations for organizations, with authentication required for update and delete operations. All endpoints are documented and testable through the Swagger UI interface.
