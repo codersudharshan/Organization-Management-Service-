@@ -2,15 +2,10 @@
 REST API routes for organization management.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.database import master_db
+from app.database import get_master_db
 from app.models.org_model import OrgCreate, OrgUpdate, OrgOut
-from app.services.org_service import (
-    create_organization,
-    get_organization_by_name,
-    update_organization,
-    delete_organization
-)
-from app.routes.deps import get_current_admin
+from app.services.org_service import org_service
+from app.routes.deps import get_current_admin, bearer_scheme
 from bson import ObjectId
 
 router = APIRouter()
@@ -26,8 +21,9 @@ async def create_org(org_data: OrgCreate):
     - **password**: Admin password (minimum 6 characters)
     """
     try:
-        result = await create_organization(
-            master_db,
+        db = get_master_db()
+        result = await org_service.create_organization(
+            db,
             org_data.organization_name,
             org_data.email,
             org_data.password
@@ -35,6 +31,11 @@ async def create_org(org_data: OrgCreate):
         return OrgOut(**result)
     except HTTPException:
         raise
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database not available: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -49,18 +50,36 @@ async def get_org(organization_name: str):
     
     - **organization_name**: Name of the organization to retrieve
     """
-    org = await get_organization_by_name(master_db, organization_name)
-    
-    if not org:
+    try:
+        db = get_master_db()
+        org = await org_service.get_organization_by_name(db, organization_name)
+        
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Organization '{organization_name}' not found"
+            )
+        
+        return OrgOut(**org)
+    except HTTPException:
+        raise
+    except RuntimeError as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization '{organization_name}' not found"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database not available: {str(e)}"
         )
-    
-    return OrgOut(**org)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get organization: {str(e)}"
+        )
 
 
-@router.put("/{organization_name}", response_model=OrgOut)
+@router.put(
+    "/{organization_name}",
+    response_model=OrgOut,
+    dependencies=[Depends(bearer_scheme)]
+)
 async def update_org(
     organization_name: str,
     org_update: OrgUpdate,
@@ -76,29 +95,30 @@ async def update_org(
     - **email**: New admin email (optional)
     - **password**: New admin password (optional)
     """
-    # Verify admin owns this organization
-    org = await get_organization_by_name(master_db, organization_name)
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Organization '{organization_name}' not found"
-        )
-    
-    # Check if current admin owns this organization
-    admin_org = await master_db.organizations.find_one({
-        "organization_name": organization_name,
-        "admin_id": ObjectId(current_admin["admin_id"])
-    })
-    
-    if not admin_org:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the organization admin can update this organization"
-        )
-    
     try:
-        result = await update_organization(
-            master_db,
+        db = get_master_db()
+        # Verify admin owns this organization
+        org = await org_service.get_organization_by_name(db, organization_name)
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Organization '{organization_name}' not found"
+            )
+        
+        # Check if current admin owns this organization
+        admin_org = await db.organizations.find_one({
+            "organization_name": organization_name,
+            "admin_id": ObjectId(current_admin["admin_id"])
+        })
+        
+        if not admin_org:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the organization admin can update this organization"
+            )
+        
+        result = await org_service.update_organization(
+            db,
             organization_name,
             org_update.new_organization_name,
             org_update.email,
@@ -107,6 +127,11 @@ async def update_org(
         return OrgOut(**result)
     except HTTPException:
         raise
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database not available: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,7 +139,10 @@ async def update_org(
         )
 
 
-@router.delete("/{organization_name}")
+@router.delete(
+    "/{organization_name}",
+    dependencies=[Depends(bearer_scheme)]
+)
 async def delete_org(
     organization_name: str,
     current_admin: dict = Depends(get_current_admin)
@@ -127,17 +155,22 @@ async def delete_org(
     - **organization_name**: Name of the organization to delete
     """
     try:
-        result = await delete_organization(
-            master_db,
+        db = get_master_db()
+        result = await org_service.delete_organization(
+            db,
             organization_name,
             ObjectId(current_admin["admin_id"])
         )
         return result
     except HTTPException:
         raise
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database not available: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete organization: {str(e)}"
         )
-

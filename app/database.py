@@ -76,7 +76,20 @@ async def close_db():
     
     Safely closes the client if it exists.
     """
-    global client
+    global client, master_db
     if client:
         client.close()
         client = None
+        master_db = None
+
+
+def get_master_db():
+    """
+    Get the master database instance.
+    
+    Raises RuntimeError if database is not connected.
+    This should only be called after connect_db() has been called.
+    """
+    if master_db is None:
+        raise RuntimeError("Database not connected. Call connect_db() first.")
+    return master_db

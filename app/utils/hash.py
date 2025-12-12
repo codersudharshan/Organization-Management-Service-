@@ -1,10 +1,8 @@
 """
-Password hashing utilities using passlib with bcrypt.
+Password hashing utilities using bcrypt directly.
+Using bcrypt directly instead of passlib to avoid compatibility issues.
 """
-from passlib.context import CryptContext
-
-# Create CryptContext with bcrypt
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 
 def hash_password(password: str) -> str:
@@ -15,9 +13,12 @@ def hash_password(password: str) -> str:
         password: Plain text password
         
     Returns:
-        Hashed password string
+        Hashed password string (UTF-8 encoded)
     """
-    return pwd_context.hash(password)
+    # Generate salt and hash password
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -31,5 +32,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode('utf-8'),
+            hashed_password.encode('utf-8')
+        )
+    except Exception:
+        return False
 

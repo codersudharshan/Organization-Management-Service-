@@ -1,10 +1,10 @@
 """
 REST API routes for authentication.
 """
-from fastapi import APIRouter, status
-from app.database import master_db
+from fastapi import APIRouter, HTTPException, status
+from app.database import get_master_db
 from app.models.admin_model import AdminLogin, TokenResponse, AdminOut
-from app.services.auth_service import admin_login
+from app.services.auth_service import auth_service
 from app.utils.jwt_handler import create_access_token
 
 router = APIRouter()
@@ -21,8 +21,9 @@ async def login(credentials: AdminLogin):
     Returns JWT token with admin_id and org_collection in payload.
     """
     try:
-        admin_data = await admin_login(
-            master_db,
+        db = get_master_db()
+        admin_data = await auth_service.admin_login(
+            db,
             credentials.email,
             credentials.password
         )
@@ -39,6 +40,15 @@ async def login(credentials: AdminLogin):
             token_type="bearer",
             admin=AdminOut(**admin_data)
         )
+    except HTTPException:
+        raise
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database not available: {str(e)}"
+        )
     except Exception as e:
-        raise e
-
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to login: {str(e)}"
+        )
