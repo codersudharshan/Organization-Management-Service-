@@ -1,0 +1,119 @@
+# API cURL Examples for Organization Management Service
+
+## Base URL
+BASE_URL=http://localhost:8000
+
+## 1. Create Organization
+curl -X POST "${BASE_URL}/org/create" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_name": "Acme Corporation",
+    "email": "admin@acme.com",
+    "password": "securepass123"
+  }'
+
+## 2. Get Organization
+curl -X GET "${BASE_URL}/org/Acme Corporation"
+
+## 3. Admin Login
+curl -X POST "${BASE_URL}/admin/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@acme.com",
+    "password": "securepass123"
+  }'
+
+# Save the access_token from response for authenticated requests
+# Example response:
+# {
+#   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+#   "token_type": "bearer",
+#   "admin": {...}
+# }
+
+## 4. Update Organization (Requires Authentication)
+# Replace <TOKEN> with the access_token from login response
+curl -X PUT "${BASE_URL}/org/Acme Corporation" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "new_organization_name": "Acme Corp Updated",
+    "email": "newadmin@acme.com",
+    "password": "newpassword123"
+  }'
+
+## 5. Update Organization Name Only
+curl -X PUT "${BASE_URL}/org/Acme Corporation" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "new_organization_name": "Acme Corp Renamed"
+  }'
+
+## 6. Update Organization Email Only
+curl -X PUT "${BASE_URL}/org/Acme Corporation" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "email": "updated@acme.com"
+  }'
+
+## 7. Update Organization Password Only
+curl -X PUT "${BASE_URL}/org/Acme Corporation" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "password": "newsecurepass456"
+  }'
+
+## 8. Delete Organization (Requires Authentication)
+curl -X DELETE "${BASE_URL}/org/Acme Corporation" \
+  -H "Authorization: Bearer <TOKEN>"
+
+## 9. Health Check
+curl -X GET "${BASE_URL}/health"
+
+## 10. Root Endpoint
+curl -X GET "${BASE_URL}/"
+
+## Example Workflow
+
+# Step 1: Create organization
+ORG_RESPONSE=$(curl -s -X POST "${BASE_URL}/org/create" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_name": "Test Company",
+    "email": "test@company.com",
+    "password": "testpass123"
+  }')
+
+echo "Created organization: $ORG_RESPONSE"
+
+# Step 2: Login
+LOGIN_RESPONSE=$(curl -s -X POST "${BASE_URL}/admin/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@company.com",
+    "password": "testpass123"
+  }')
+
+# Extract token (requires jq or similar tool)
+TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.access_token')
+echo "Token: $TOKEN"
+
+# Step 3: Get organization
+curl -X GET "${BASE_URL}/org/Test Company" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Step 4: Update organization
+curl -X PUT "${BASE_URL}/org/Test Company" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "new_organization_name": "Test Company Updated"
+  }'
+
+# Step 5: Delete organization
+curl -X DELETE "${BASE_URL}/org/Test Company Updated" \
+  -H "Authorization: Bearer $TOKEN"
+

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6
+    container_name: org_mgmt_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=org_master_db
+    networks:
+      - org_network
+
+  app:
+    build: .
+    container_name: org_mgmt_app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on:
+      - mongo
+    networks:
+      - org_network
+    volumes:
+      - ./app:/app/app
+
+volumes:
+  mongo_data:
+
+networks:
+  org_network:
+    driver: bridge
+
