@@ -1,6 +1,6 @@
 # Organization Management Service
 
-**GitHub Repository:** [Your Repository Link Here]
+**GitHub Repository:** [https://github.com/codersudharshan/Organization-Management-Service-]
 
 A FastAPI-based backend service for managing organizations with MongoDB. Each organization is assigned its own database collection, and administrators are authenticated using JWT tokens. The application follows a class-based design pattern for modularity and maintainability.
 
